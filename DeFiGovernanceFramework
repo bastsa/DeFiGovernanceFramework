@@ -1,0 +1,75 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract DeFiGovernanceFramework is Ownable {
+    // Proposal structure
+    struct Proposal {
+        uint256 id;
+        address proposer;
+        string description;
+        uint256 votesFor;
+        uint256 votesAgainst;
+        bool executed;
+    }
+
+    // Mapping of proposal ID to Proposal
+    mapping(uint256 => Proposal) public proposals;
+    uint256 public proposalCount;
+
+    // Token used for governance (assume ERC20 for simplicity)
+    IERC20 public governanceToken;
+
+    // Events
+    event ProposalCreated(uint256 indexed id, address indexed proposer, string description);
+    event Voted(uint256 indexed id, address indexed voter, bool inSupport, uint256 votes);
+    event ProposalExecuted(uint256 indexed id);
+
+    // Constructor
+    constructor(address _governanceToken) {
+        governanceToken = IERC20(_governanceToken);
+    }
+
+    // Create a new proposal
+    function createProposal(string memory description) external {
+        require(governanceToken.balanceOf(msg.sender) > 0, "Must hold governance tokens to create proposal");
+
+        uint256 newProposalId = proposalCount++;
+        proposals[newProposalId] = Proposal({
+            id: newProposalId,
+            proposer: msg.sender,
+            description: description,
+            votesFor: 0,
+            votesAgainst: 0,
+            executed: false
+        });
+
+        emit ProposalCreated(newProposalId, msg.sender, description);
+    }
+
+    // Vote on a proposal
+    function vote(uint256 proposalId, bool inSupport) external {
+        require(governanceToken.balanceOf(msg.sender) > 0, "Must hold governance tokens to vote");
+        require(!proposals[proposalId].executed, "Proposal has already been executed");
+
+        if (inSupport) {
+            proposals[proposalId].votesFor += governanceToken.balanceOf(msg.sender);
+        } else {
+            proposals[proposalId].votesAgainst += governanceToken.balanceOf(msg.sender);
+        }
+
+        emit Voted(proposalId, msg.sender, inSupport, governanceToken.balanceOf(msg.sender));
+    }
+
+    // Execute a proposal
+    function executeProposal(uint256 proposalId) external onlyOwner {
+        require(!proposals[proposalId].executed, "Proposal has already been executed");
+        require(proposals[proposalId].votesFor > proposals[proposalId].votesAgainst, "Proposal must have majority support");
+
+        // Execute proposal logic (example: emit event)
+        proposals[proposalId].executed = true;
+
+        emit ProposalExecuted(proposalId);
+    }
+}
